@@ -1,122 +1,201 @@
-# CMCRL
+# SCM-CC: Structured Clinical Memory and Bounded Counterfactual Correction for Radiology Report Generation
 
-This is the implementation of [Cross-Modal Causal Intervention for Medical Report Generation](https://arxiv.org/pdf/2303.09117.pdf).
-It contains the codes of the Radiological Cross-modal Alignment and Reconstruction Enhanced（RadCARE）, and fine-tuning via Visual-Linguistic Causal Intervention (VLCI) on IU-Xray/MIMIC-CXR dataset.
+This repository contains the implementation of **SCM-CC**, a stage-wise framework for chest X-ray report generation. SCM-CC is designed for the clinically important setting where frequent normal descriptions can obscure localized or rare abnormal findings.
 
-## Recommended Branches
+The method separates evidence construction from output correction:
 
-This repository currently keeps two practical working branches for MIMIC-CXR experiments:
+1. **Stage I: clinical evidence routing.** An anatomy-aware adapter routes visual patch features through latent chest-region prototypes. Structured clinical memory then produces compact regional, pathology, and reporting-style prompts. Confidence gating and normal-aware suppression reduce unsupported pathology prompting.
+2. **Stage II: bounded counterfactual correction.** Counterfactual Causal Logit Intervention (CCLI) compares factual decoding logits with logits under a soft normal-reference context. The correction is bounded and activated only when pathology confidence supports it.
+3. **Matched continuation control.** S1 (no CCLI) and S2 (with CCLI) start from the *same* Stage-I checkpoint and use the same optimization setup. This isolates the effect of logit correction from ordinary additional fine-tuning.
 
-- `stable/best-0.1214`
-  - Recommended branch for reproducing the current strongest BLEU-oriented result in our experiments.
-  - Main result on MIMIC-CXR: `Stage-II CCLI` with `test_BLEU_4 ≈ 0.1214`.
-  - Recommended scripts on this branch:
-    - `mimic_train_gated_prompt_stage1.sh`
-    - `mimic_train_ccli_stage2.sh`
-    - `mimic_test.sh` for BLEU-first evaluation
-    - `mimic_test_clinical.sh` for clinical-balanced decoding (`CCD gamma=0.1`)
+The repository is a clean code release: datasets, pretrained checkpoints, run outputs, paper-writing materials, and ablation records are intentionally not included.
 
-- `exp/20260511-mixed-experiments`
-  - Experimental branch that preserves all recent exploratory modules and scripts.
-  - Includes failed / neutral / ongoing research lines such as:
-    - region-aware CCLI
-    - Explicit CPMI
-    - clause memory
-    - CCD sweep
-  - Use this branch when you want to inspect the full research trail rather than reproduce the current best BLEU result.
+## Method at a Glance
 
-In short:
-
-- use `stable/best-0.1214` for reproducible best-result experiments;
-- use `exp/20260511-mixed-experiments` for exploratory development and ablations.
-
-<div align=center>
-
-<img src="vlci.png" alt="图片替换文本" width="1024" />
-
-</div>
-
-## Requirements
-All the requirements are listed in the requirements.yaml file. Please use this command to create a new environment and activate it.
-
+```text
+Chest X-ray
+    |
+    +--> Stage I: anatomy prototypes -> structured clinical memory -> factual decoder context
+    |                                                         |
+    |                                                         +--> S0 checkpoint
+    |
+    +--> Stage II matched continuations from the same S0 checkpoint
+            S1: no-CCLI continuation (control)
+            S2: CCLI continuation (SCM-CC)
+                    |
+                    +--> optional clinical contrastive decoding (CCD)
 ```
+
+The anatomical prototypes are latent soft anchors, not segmentation masks. CCLI is a controlled model-level factual-versus-normal logit contrast; it does not claim patient-level causal identification.
+
+## Repository Layout
+
+```text
+config/                         MIMIC-CXR and IU-Xray configurations
+data/                           Small public helper assets and data downloader
+metric/                         BLEU, METEOR, ROUGE-L, CIDEr, and clinical metrics
+models/                         VLCI backbone and SCM-CC model variants
+modules/                        Anatomy adapter, memory prompt, and CCLI modules
+trainer/                        Pretraining and fine-tuning trainers
+utils/                          Data loading, tokenization, optimization utilities
+main.py                         Training and validation entry point
+eval_dump_reports.py            Generate reports and lexical metrics
+eval_clinical.py                CE-P / CE-R / CE-F1 evaluation with F1CheXbert
+mimic_train_gated_prompt_stage1.sh
+mimic_train_ccli_stage2_clean.sh
+mimic_test.sh
+mimic_test_clinical.sh
+iu_train.sh
+iu_test.sh
+```
+
+## Environment
+
+```bash
 conda env create -f requirements.yaml
 conda activate mrg
 ```
 
+The clinical evaluation uses [F1CheXbert](https://github.com/rajpurkarlab/chexbert). Install it in the same environment and ensure its model assets are available before running `eval_clinical.py`.
 
-## Preparation
-1. Datasets: 
-You can download the dataset via `data/datadownloader.py`, or download from the repo of [R2Gen](https://github.com/cuhksz-nlp/R2Gen).
-Then, unzip the files into `data/iu_xray` and `data/mimic_cxr`, respectively. 
-2. Models: We provide the well-trained models of VLCI for inference, and you can download from [here](https://pan.baidu.com/s/1LKp_XLUVttAkgCHwm6QHpg?pwd=vsg1).
-3. Please remember to change the path of data and models in the config file (`config/*.json`).
+```bash
+pip install f1chexbert
+```
+
+## Data and Checkpoints
+
+This release does not redistribute MIMIC-CXR, IU-Xray images, annotations, or model checkpoints.
+
+- Obtain MIMIC-CXR through its official PhysioNet access process and comply with its data-use agreement.
+- Obtain IU-Xray from the source used by the underlying VLCI/R2Gen setup.
+- Place data under `data/mimic_cxr/` and `data/iu_xray/`, then update `image_dir` and `ann_path` in the corresponding JSON file under `config/`.
+- Supply your own baseline and Stage-I checkpoints. Checkpoints are deliberately excluded by `.gitignore`.
+
+For the Stage-I recipe, the following local supervision files are expected:
+
+```text
+data/mimic_cxr_pseudo_labels.json
+data/mimic_cxr_template_labels.json
+```
+
+They can be produced from the local MIMIC-CXR training annotations with the data-preparation utilities in `scripts/`, or replaced with compatible files from your preprocessing pipeline.
+
+## Reproduction Protocol
+
+The paper's central MIMIC-CXR comparison is a stage-wise matched-continuation experiment:
+
+| Run | Initialization | CCLI | Purpose |
+| --- | --- | --- | --- |
+| Base | pretrained VLCI checkpoint | no | initialization baseline |
+| S0 | Base checkpoint | no | Stage-I clinical evidence routing |
+| S1 | the selected S0 checkpoint | no | Stage-II matched continuation control |
+| S2 | the same selected S0 checkpoint as S1 | yes | SCM-CC final model |
+
+For a fair S1/S2 comparison, use the same random seed, epochs, batch size, learning rates, decoder settings, and the exact same `S0/model_best_val.pth` path for both continuations.
+
+### 1. Stage I: Train Clinical Evidence Routing (S0)
+
+Set the path to a pretrained MIMIC-CXR VLCI checkpoint and run:
+
+```bash
+BASELINE_CKPT=/absolute/path/to/baseline_model_best.pth \
+bash mimic_train_gated_prompt_stage1.sh
+```
+
+The included Stage-I recipe uses innovation-only fine-tuning, batch size 16, Adam, encoder/decoder learning rate `1e-6`, weight decay `5e-5`, maximum report length 80, and a three-epoch continuation. The selected validation checkpoint is the S0 starting point for both Stage-II branches.
+
+### 2. Stage II Control (S1): Continue Without CCLI
+
+```bash
+STAGE1_CKPT=/absolute/path/to/S0/model_best_val.pth \
+USE_COUNTERFACTUAL_INTERVENTION=0 \
+TASK_PREFIX=s1_no_ccli \
+bash mimic_train_ccli_stage2_clean.sh
+```
+
+### 3. Stage II SCM-CC (S2): Continue With CCLI
+
+```bash
+STAGE1_CKPT=/absolute/path/to/S0/model_best_val.pth \
+USE_COUNTERFACTUAL_INTERVENTION=1 \
+TASK_PREFIX=s2_ccli \
+bash mimic_train_ccli_stage2_clean.sh
+```
+
+The two commands above must use the same `STAGE1_CKPT`. The Stage-II recipe defaults to an anomaly threshold of `0.35`, anomaly temperature `0.10`, maximum CCLI strength `0.25`, and hidden dimension `16`.
+
+### 4. Generate Test Reports and Lexical Scores
+
+```bash
+BEST_MODEL=/absolute/path/to/S2/model_best_val.pth \
+TASK_NAME=s2_test \
+bash mimic_test.sh
+```
+
+This uses beam search with beam size 3 and reports BLEU-1/2/3/4, METEOR, ROUGE-L, and CIDEr.
+
+### 5. Clinical Evaluation and CCD
+
+For the standard S2 operating point, first generate reports with `mimic_test.sh`, then evaluate the generated CSV:
+
+```bash
+python eval_clinical.py \
+  --c config/mimic_cxr/vlci.json \
+  --task_name s2_test \
+  --result_dir results/mimic_cxr/test/s2_test \
+  --report_csv results/mimic_cxr/test/s2_test/mimic_cxr_reports.csv \
+  --cuda 0 --seed 10200
+```
+
+For the optional clinical contrastive decoding (CCD) operating point:
+
+```bash
+BEST_MODEL=/absolute/path/to/S2/model_best_val.pth \
+CCD_GAMMA=0.1 \
+TASK_NAME=s2_ccd_test \
+bash mimic_test_clinical.sh
+```
+
+CCD is an inference-time operating-point analysis. Select `CCD_GAMMA` on the validation set only, then evaluate the selected value once on the test set. It should not be tuned on the test set.
+
+### IU-Xray
+
+After updating the paths in `config/iu_xray/vlci.json`, the base training and evaluation entry points are:
+
+```bash
+bash iu_train.sh
+BEST_MODEL=/absolute/path/to/model_best_val.pth bash iu_test.sh
+```
+
+The default IU-Xray configuration uses batch size 16, beam size 3, maximum sequence length 60, Adam, and StepLR. The transfer setting in the paper uses lightweight innovation-only adaptation from an author-provided checkpoint rather than training the whole backbone from scratch.
 
 ## Evaluation
-- For VLCI on IU-Xray dataset 
 
-```
-python main.py -c config/iu_xray/vlci.json
-```
+Lexical metrics are computed from generated reports with BLEU, METEOR, ROUGE-L, and CIDEr. Clinical metrics are micro-averaged CE-P, CE-R, and CE-F1 from the 14-observation F1CheXbert/CheXbert-style report labeling protocol implemented in `metric/clinical.py`.
 
-<div align=center>
+Clinical-label metrics are automatic consistency checks, not radiologist assessment. Report metrics, model checkpoints, and operating-point choices should always be selected on the validation set before a final test evaluation.
 
-| Model             | B@1   | B@2   | B@3   | B@4   |C      |    R|   M  |
-|:-----:            |:---:  |:---:  |:---:  |:---:  |:---:  |:---:|:---: |
-| R2Gen             | 0.470 | 0.304 | 0.219 | 0.165 |/      |0.371|0.187 |
-| CMCL              | 0.473 | 0.305 | 0.217 | 0.162 |/      |0.378|0.186 |
-| PPKED             | 0.483 | 0.315 | 0.224 | 0.168 | 0.351 |0.376|0.190 |
-| CA                | 0.492 | 0.314 | 0.222 | 0.169 |/      |0.381|0.193 |
-| AlignTransformer  | 0.484 | 0.313 | 0.225 | 0.173 |/      |0.379|0.204 |
-| M2TR              | 0.486 | 0.317 | 0.232 | 0.173 |/      |0.390|0.192 |
-| MGSK              | 0.496 | 0.327 | 0.238 | 0.178 |0.382  |0.381|/     |
-| RAMT              | 0.482 | 0.310 | 0.221 | 0.165 |/      |0.377|0.195 |
-| MMTN              | 0.486 | 0.321 | 0.232 | 0.175 |0.361  |0.375|/     |
-| DCL               | /     | /     | /     | 0.163 |**0.586**  |0.383|0.193 |
-| CMCRL              | **0.505** | **0.334** | **0.245** | **0.189** |0.456  |**0.397**|**0.204** |
+## Reproducibility Notes
 
-</div>
-
-- For VLCI on MIMIC-CXR dataset
-
-```
-python main.py -c config/mimic_cxr/vlci.json
-```
-
-<div align=center>
-
-| Model             | B@1   | B@2   | B@3   | B@4   |C    |    R|   M  | CE-P  | CE-R  | CE-F1 |
-|:-----:            |:---:  |:---:  |:---:  |:---:  |:---:|:---:|:---: |:---:  |:---:  |:---:  |
-| R2Gen             | 0.353 | 0.218 | 0.145 | 0.103 |/    |0.277|0.142 | 0.333 | 0.273 | 0.276 |
-| CMCL              | 0.334 | 0.217 | 0.140 | 0.097 |/    |0.281|0.133 | /     | /     | /     |
-| PPKED             | 0.360 | 0.224 | 0.149 | 0.106 |0.237|**0.284**|0.149 | /     | /     | /     |
-| CA                | 0.350 | 0.219 | 0.152 | 0.109 |/    |0.283|0.151 | 0.352 | 0.298 | 0.303 |
-| AlignTransformer  | 0.378 | 0.235 | 0.156 | 0.112 |/    |0.283|0.158 | /     | /     | /     |
-| M2TR              | 0.378 | 0.232 | 0.154 | 0.107 |/    |0.272|0.145 | 0.240 | 0.428 | 0.308 |
-| MGSK              | 0.363 | 0.228 | 0.156 | 0.115 |0.203|**0.284**|/     | 0.458 | 0.348 | 0.371 |
-| RAMT              | 0.362 | 0.229 | 0.157 | 0.113 |/    |**0.284**|0.153 | 0.380 | 0.342 | 0.335 |
-| MMTN              | 0.379 | 0.238 | 0.159 | 0.116 |/    |0.283|**0.161** | /     | /     | /     |
-| DCL               | /     | /     | /     | 0.109 |**0.281**|**0.284**|0.150 | 0.471 | 0.352 |0.373  |
-| CMCRL              | **0.400** | **0.245** | **0.165** | **0.119** | 0.190 | 0.280   |  0.150  | **0.489** | **0.340** | **0.401** |
-
-</div>
+- Keep S1 and S2 matched: same S0 checkpoint, seed, number of epochs, batch size, optimizer, learning rate, and decoding configuration.
+- Store generated reports together with the exact checkpoint path and command used for evaluation.
+- The training scripts select `model_best_val.pth` by validation BLEU-4 unless you deliberately change the monitor setting.
+- Absolute dataset and checkpoint paths in the example configs are machine-specific. Replace them before running.
+- The repository omits large binary checkpoints and protected clinical data by design.
 
 ## Citation
-If you use this code for your research, please cite our paper.
 
+If you use this repository, please cite the accompanying manuscript:
+
+```bibtex
+@article{wang2026scmcc,
+  title   = {SCM-CC: Structured Clinical Memory and Bounded Counterfactual Correction for Radiology Report Generation},
+  author  = {Wang, Dandan and Sun, Jiaxiang and Guo, Wenping and Zhao, Shuchang and Zhang, Shiqing},
+  year    = {2026},
+  note    = {Manuscript in preparation}
+}
 ```
-@ARTICLE{11005686,
-  author={Chen, Weixing and Liu, Yang and Wang, Ce and Zhu, Jiarui and Li, Guanbin and Liu, Cheng-Lin and Lin, Liang},
-  journal={IEEE Transactions on Image Processing}, 
-  title={Cross-Modal Causal Representation Learning for Radiology Report Generation}, 
-  year={2025},
-  volume={34},
-  pages={2970-2985},
-  doi={10.1109/TIP.2025.3568746}}
-```
 
-## Contact
-If you have any questions about this code, feel free to reach me (chenwx228@mail2.sysu.edu.cn)
+## Acknowledgments
 
-## Acknowledges
-We thank [R2Gen](https://github.com/cuhksz-nlp/R2Gen) for their open source works.
+This codebase builds on the original CMCRL/VLCI implementation and the R2Gen ecosystem. Please follow the licenses and dataset access requirements of all upstream projects and data providers.

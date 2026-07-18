@@ -1,7 +1,8 @@
 #!/bin/bash
 
 EXP_TIME=$(date +"%Y%m%d_%H%M%S")
-TASK_NAME="ccli_clean_stage2_${EXP_TIME}"
+TASK_PREFIX="${TASK_PREFIX:-ccli_clean_stage2}"
+TASK_NAME="${TASK_PREFIX}_${EXP_TIME}"
 SAVE_DIR="results/mimic_cxr/train/${TASK_NAME}"
 mkdir -p "$SAVE_DIR"
 LOG_FILE="${SAVE_DIR}/run.log"
@@ -12,7 +13,7 @@ fi
 
 SEED="${SEED:-10200}"
 EPOCHS="${EPOCHS:-3}"
-BASELINE_CKPT="/home/sjx/work/project/CMCRL-main/results/mimic_cxr/train/distill_prompt_best_f1/model_best.pth"
+STAGE1_CKPT="${STAGE1_CKPT:-/home/sjx/work/project/CMCRL-main/results/mimic_cxr/train/distill_prompt_best_f1/model_best.pth}"
 
 PATHOLOGY_LOSS_WEIGHT=0.001
 TEMPLATE_LOSS_WEIGHT=0.001
@@ -26,7 +27,7 @@ PATHOLOGY_GATE_TEMPERATURE=0.12
 USE_NORMAL_AWARE_SUPPRESSION=1
 NORMAL_SUPPRESSION_THRESHOLD=0.45
 NORMAL_SUPPRESSION_TEMPERATURE=0.10
-USE_COUNTERFACTUAL_INTERVENTION=1
+USE_COUNTERFACTUAL_INTERVENTION="${USE_COUNTERFACTUAL_INTERVENTION:-1}"
 CCLI_ANOMALY_THRESHOLD=0.35
 CCLI_ANOMALY_TEMPERATURE=0.10
 CCLI_MAX_ALPHA=0.25
@@ -37,9 +38,9 @@ echo ">>> Clean Stage-II CCLI reproduction: ${TASK_NAME}"
 echo ">>> 结果目录: ${SAVE_DIR}"
 echo ">>> 日志文件: ${LOG_FILE}"
 echo ">>> seed=${SEED}, epochs=${EPOCHS}"
-echo ">>> Stage-I 初始化权重: ${BASELINE_CKPT}"
+echo ">>> Stage-I 初始化权重: ${STAGE1_CKPT}"
 echo ">>> model=vlci_ccli_clean"
-echo ">>> train_only_innovations=1, memory_prompt=on, CCLI=on"
+echo ">>> train_only_innovations=1, memory_prompt=on, CCLI=${USE_COUNTERFACTUAL_INTERVENTION}"
 echo ">>> pathology=${PATHOLOGY_LOSS_WEIGHT}, template=${TEMPLATE_LOSS_WEIGHT}, distill=${DISTILL_LOSS_WEIGHT}"
 
 python main.py --c config/mimic_cxr/vlci.json \
@@ -49,7 +50,7 @@ python main.py --c config/mimic_cxr/vlci.json \
     --result_dir "$SAVE_DIR" \
     --cuda 0 \
     --seed "$SEED" \
-    --load_model_path "$BASELINE_CKPT" \
+    --load_model_path "$STAGE1_CKPT" \
     --epochs "$EPOCHS" \
     --batch_size 16 \
     --val_intervals 4 \

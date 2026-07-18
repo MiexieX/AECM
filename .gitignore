@@ -21,6 +21,7 @@ __pycache__/
 pretrained/
 
 # Training outputs and evaluation results
+experiments/
 results/
 records/
 ABLATION_RESULTS_*/

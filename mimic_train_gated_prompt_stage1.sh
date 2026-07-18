@@ -1,7 +1,9 @@
 #!/bin/bash
 
 EXP_TIME=$(date +"%Y%m%d_%H%M%S")
-TASK_NAME="gated_prompt_stage1_${EXP_TIME}"
+TASK_PREFIX="${TASK_PREFIX:-gated_prompt_stage1}"
+TASK_NAME="${TASK_PREFIX}_${EXP_TIME}"
+SEED="${SEED:-10200}"
 SAVE_DIR="results/mimic_cxr/train/${TASK_NAME}"
 mkdir -p "$SAVE_DIR"
 LOG_FILE="${SAVE_DIR}/run.log"
@@ -12,7 +14,7 @@ fi
 
 # Stage-I reproduction script for the non-CCLI gated prompt distillation model.
 # This is the configuration that produced the clinical-best BLEU 0.1202 model.
-BASELINE_CKPT="/home/sjx/work/project/CMCRL-main/results/mimic_cxr/train/baseline_potential2_20260424_113736/model_best.pth"
+BASELINE_CKPT="${BASELINE_CKPT:-/home/sjx/work/project/CMCRL-main/results/mimic_cxr/train/baseline_potential2_20260424_113736/model_best.pth}"
 
 PATHOLOGY_LOSS_WEIGHT=0.001
 TEMPLATE_LOSS_WEIGHT=0.001
@@ -43,7 +45,7 @@ python main.py --c config/mimic_cxr/vlci.json \
     --task_name "$TASK_NAME" \
     --result_dir "$SAVE_DIR" \
     --cuda 0 \
-    --seed 10200 \
+    --seed "$SEED" \
     --load_model_path "$BASELINE_CKPT" \
     --epochs 3 \
     --batch_size 16 \
