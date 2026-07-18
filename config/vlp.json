@@ -1,0 +1,74 @@
+{
+    "data": {
+        "dataset_name": "mix",
+        "image_dir": "",
+        "ann_path": "",
+        "tokenizer": "mix",
+        "max_seq_length": 100,
+        "threshold": 10,
+        "num_workers": 2,
+        "batch_size": 64
+    },
+    "model": {
+        "model": "vlp",
+        "embed_dim": 512,
+        "v_causal": "n",
+        "l_causal": "n",
+        "num_heads": 8,
+        "v_mask_ratio": 0.85,
+        "en_num_layers": 3,
+        "de_num_layers": 3,
+        "dropout": 0.0,
+        "logit_layers": 1,
+        "bos_idx": 0,
+        "eos_idx": 0,
+        "pad_idx": 0,
+        "use_bn": 0,
+        "drop_prob_lm": 0.5
+    },
+    "sample": {
+        "sample_method": "beam_search",
+        "length_penalty": "",
+        "diversity_lambda": 0.5,
+        "suppress_UNK": 0,
+        "beam_size": 3,
+        "temperature": 1.0,
+        "sample_n": 1,
+        "group_size": 1,
+        "output_logsoftmax": 1,
+        "decoding_constraint": 0,
+        "block_trigrams": 1
+    },
+    "trainer": {
+        "epochs": 30,
+        "result_dir": "results/pretrain",
+        "record_dir": "records/pretrain",
+        "save_period": 1,
+        "monitor_mode": "max",
+        "monitor_metric": "BLEU_4",
+        "early_stop": 50,
+        "display_port": 8099,
+        "monitor_metric_curves": false,
+        "monitor_report": false,
+        "monitor_image": false
+    },
+    "optim": {
+        "loss_fn": "recon",
+        "optim": "AdamW",
+        "lr_en": 5e-4,
+        "lr_de": 5e-4,
+        "weight_decay": 1e-2,
+        "amsgrad": true,
+        "lr_scheduler": "warmup",
+        "step_size": 3,
+        "gamma": 0.8
+    },
+    "other": {
+        "task_name": "pretrain",
+        "seed": 42,
+        "cuda": 3,
+        "task": "pretrain",
+        "load_model_path": "/home/sjx/work/project/CMCRL-main/pretrained/mimic_cxr_model_best.pth",
+        "resume": ""
+    }
+}

@@ -1,0 +1,75 @@
+{
+    "data": {
+        "dataset_name": "iu_xray",
+        "image_dir": "/home/sjx/work/project/CMCRL-main/data/iu_xray/images",
+        "ann_path": "/home/sjx/work/project/CMCRL-main/data/iu_xray/annotation.json",
+        "tokenizer": "mix",
+        "max_seq_length": 60,
+        "threshold": 3,
+        "num_workers": 2,
+        "batch_size": 16
+    },
+    "model": {
+        "model": "vlci",
+        "embed_dim": 512,
+        "v_causal": "y",
+        "l_causal": "y",
+        "causal_proj": false,
+        "num_heads": 8,
+        "V_mask_ratio": 0.85,
+        "en_num_layers": 6,
+        "de_num_layers": 6,
+        "dropout": 0.1,
+        "logit_layers": 1,
+        "bos_idx": 0,
+        "eos_idx": 0,
+        "pad_idx": 0,
+        "use_bn": 0,
+        "drop_prob_lm": 0.5
+    },
+    "sample": {
+        "sample_method": "beam_search",
+        "length_penalty": "",
+        "diversity_lambda": 0.5,
+        "suppress_UNK": 1,
+        "beam_size": 3,
+        "temperature": 1.0,
+        "sample_n": 1,
+        "group_size": 1,
+        "output_logsoftmax": 1,
+        "decoding_constraint": 0,
+        "block_trigrams": 1
+    },
+    "trainer": {
+        "epochs": 0,
+        "result_dir": "experiments/iu_ablation_results/runs/mimic_zero_shot_on_iu",
+        "record_dir": "experiments/iu_ablation_results/runs/mimic_zero_shot_on_iu",
+        "save_period": 1,
+        "monitor_mode": "max",
+        "monitor_metric": "BLEU_4",
+        "early_stop": 50,
+        "display_port": 8099,
+        "monitor_metric_curves": false,
+        "monitor_report": false,
+        "monitor_image": false
+    },
+    "optim": {
+        "loss_fn": "lm",
+        "optim": "Adam",
+        "lr_en": 1e-5,
+        "lr_de": 1e-5,
+        "weight_decay": 5e-5,
+        "amsgrad": true,
+        "lr_scheduler": "StepLR",
+        "step_size": 50,
+        "gamma": 0.1
+    },
+    "other": {
+        "task_name": "mimic_zero_shot_on_iu",
+        "seed": 10200,
+        "cuda": 0,
+        "task": "test",
+        "load_model_path": "",
+        "resume": ""
+    }
+}

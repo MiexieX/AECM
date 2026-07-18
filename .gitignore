@@ -1,0 +1,50 @@
+# Project metadata
+.idea/
+gitignore.txt
+
+# Python cache and bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs and temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Model checkpoints and weights
+*.pth
+*.pt
+*.ckpt
+pretrained/
+
+# Training outputs and evaluation results
+results/
+records/
+ABLATION_RESULTS_*/
+experiments/**/runs/
+experiments/**/final_results/
+experiments/**/archive/
+
+# Local datasets
+data/iu_xray/
+data/mimic_cxr/
+data/anatomy_pathology_polarity_memory.json
+data/mimic_cxr_pseudo_labels.json
+data/mimic_cxr_template_labels.json
+
+# Paper writing artifacts and local logs
+paper/
+paper_evidence_*/
+latex/
+handoff_summaries/
+*.pdf
+nohup*.out
+current_*_root.txt
+.vscode/
+
+# Optional local files
+.DS_Store
+Thumbs.db
