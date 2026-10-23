@@ -12,10 +12,11 @@ AECM addresses this by organizing image patches into an anatomy-sensitive eviden
 path before decoding and by admitting clinical cues only when the routed image
 evidence supports them.
 
-> **Repository name.** The repository keeps the historical `scm_cc` identifier.
-> The code path used by the AECM paper is the Stage-I **AER + CGCM** configuration
-> described below. The earlier Stage-II counterfactual branch is retained for
-> provenance but is not part of the paper; see
+> **Repository name.** This repository is named **AECM** after the paper. It was
+> previously named `scm_cc`; some historical file and class names retain the old
+> identifier. The code path used by the AECM paper is the Stage-I **AER + CGCM**
+> configuration described below. The earlier Stage-II counterfactual branch is
+> retained for provenance but is not part of the paper; see
 > [Legacy Stage-II code](#legacy-stage-ii-code-not-in-the-paper).
 
 ## Method at a Glance
